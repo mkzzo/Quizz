@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SQL Noir: O Mistério da Integridade Quebrada</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --accent: #238636;
+      --accent-hover: #2ea043;
+      --danger: #da3633;
+      --warning: #f0883e;
+      --text: #c9d1d9;
+      --text-bright: #ffffff;
+      --terminal-bg: #090d12;
+      --code: #58a6ff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 12px;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 480px; /* Tamanho de tela de celular */
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Header Mobile */
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(240, 136, 62, 0.15);
+      color: var(--warning);
+      border: 1px solid var(--warning);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      color: var(--text-bright);
+    }
+
+    /* Barra de Progresso */
+    .progress-bar {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .progress-step {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+
+    .progress-step.active {
+      background: var(--accent);
+    }
+
+    /* Cartão do Caso */
+    .case-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .case-title {
+      font-size: 1.05rem;
+      color: var(--text-bright);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .briefing {
+      font-size: 0.88rem;
+      line-height: 1.45;
+      color: #8b949e;
+      background: rgba(255,255,255,0.03);
+      padding: 10px;
+      border-radius: 8px;
+      border-left: 3px solid var(--code);
+    }
+
+    /* Mini Tabela / Schema Viewer */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--terminal-bg);
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    th {
+      background: #121820;
+      color: var(--code);
+      font-weight: 600;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Botões de Opção */
+    .options-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .btn-option {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text-bright);
+      padding: 12px 14px;
+      border-radius: 8px;
+      text-align: left;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-option code {
+      font-family: monospace;
+      color: var(--code);
+      font-size: 0.82rem;
+    }
+
+    .btn-option:active {
+      transform: scale(0.98);
+      background: #30363d;
+    }
+
+    .btn-option.correct {
+      background: rgba(35, 134, 54, 0.2) !important;
+      border-color: var(--accent) !important;
+      color: #3fb950 !important;
+    }
+
+    .btn-option.wrong {
+      background: rgba(218, 54, 51, 0.2) !important;
+      border-color: var(--danger) !important;
+      color: #f85149 !important;
+    }
+
+    /* Feedback Box */
+    .feedback-box {
+      display: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .feedback-box.success {
+      background: rgba(35, 134, 54, 0.15);
+      border: 1px solid var(--accent);
+      color: #3fb950;
+    }
+
+    .feedback-box.error {
+      background: rgba(218, 54, 51, 0.15);
+      border: 1px solid var(--danger);
+      color: #f85149;
+    }
+
+    .btn-next {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: none;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .btn-next:active {
+      background: var(--accent-hover);
+    }
+
+    /* Tela Final */
+    .win-screen {
+      text-align: center;
+      padding: 24px 12px;
+      display: none;
+    }
+
+    .win-screen h2 {
+      color: #3fb950;
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+
+    .win-screen p {
+      font-size: 0.9rem;
+      color: #8b949e;
+      margin-bottom: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Cabeçalho -->
+    <header>
+      <span class="badge">Perícia de Banco de Dados</span>
+      <h1>Operação Integridade</h1>
+      <div class="progress-bar">
+        <div id="step-1" class="progress-step active"></div>
+        <div id="step-2" class="progress-step"></div>
+        <div id="step-3" class="progress-step"></div>
+      </div>
+    </header>
+
+    <!-- Área Interativa do Jogo -->
+    <main id="game-content" class="case-card">
+      <div class="case-title" id="case-title">
+        <span>🔍</span> <span id="title-text">Caso 1: A Invasão da Tabela</span>
+      </div>
+
+      <div class="briefing" id="case-desc">
+        Carregando cenário...
+      </div>
+
+      <div class="table-container" id="table-view">
+        <!-- Tabela do caso é injetada aqui -->
+      </div>
+
+      <p style="font-size: 0.8rem; font-weight: 600; color: #8b949e; margin-top: 4px;">QUAL COMANDO O SGBD DEVE REJEITAR?</p>
+
+      <div class="options-grid" id="options-container">
+        <!-- Botões injetados dinamicamente -->
+      </div>
+
+      <div class="feedback-box" id="feedback"></div>
+      <button class="btn-next" id="btn-next" onclick="nextQuestion()">Próximo Caso ➔</button>
+    </main>
+
+    <!-- Tela de Conclusão -->
+    <div class="case-card win-screen" id="win-screen">
+      <div style="font-size: 3rem; margin-bottom: 10px;">🛡️</div>
+      <h2>Banco Restaurado!</h2>
+      <p>Você protegeu o banco contra <strong>chaves duplicadas</strong>, <strong>valores inválidos</strong> e <strong>registros órfãos</strong>.</p>
+      <button class="btn-next" style="display: block; width: 100%;" onclick="restartGame()">Jogar Novamente</button>
+    </div>
+  </div>
+
+  <script>
+    const stages = [
+      {
+        title: "Caso 1: Integridade de Entidade (PK)",
+        desc: "A tabela <code>CLIENTES</code> usa <code>id_cliente INT PRIMARY KEY</code>. Qual dos comandos abaixo causará um <strong>ERRO CRÍTICO</strong> no SGBD?",
+        tableHtml: `
+          <table>
+            <thead><tr><th>id_cliente (PK)</th><th>nome</th><th>cpf</th></tr></thead>
+            <tbody>
+              <tr><td>101</td><td>Alice Dias</td><td>111.222.333-00</td></tr>
+              <tr><td>102</td><td>Bruno Lima</td><td>444.555.666-11</td></tr>
+            </tbody>
+          </table>
+        `,
+        options: [
+          { text: "Inserir id_cliente = 103 com novo CPF", code: "INSERT INTO CLIENTES VALUES (103, 'Carlos', '777...');", correct: false, reason: "Incorreto. O ID 103 é inédito e não nulo, então é perfeitamente válido!" },
+          { text: "Inserir id_cliente = 101 já existente", code: "INSERT INTO CLIENTES VALUES (101, 'Daniel', '999...');", correct: true, reason: "Exato! Violação de PRIMARY KEY! Uma PK exige Unicidade absoluta: o ID 101 já existe na tabela." },
+          { text: "Atualizar o nome de Bruno para Bruno Silva", code: "UPDATE CLIENTES SET nome = 'Bruno Silva' WHERE id_cliente = 102;", correct: false, reason: "Incorreto. Atualizar apenas atributos não-chave é uma operação normal." }
+        ]
+      },
+      {
+        title: "Caso 2: Integridade de Domínio (CHECK)",
+        desc: "A coluna <code>preco</code> da tabela <code>PRODUTOS</code> possui a regra: <code>CHECK (preco > 0 AND estoque >= 0)</code>. Qual comando será bloqueado?",
+        tableHtml: `
+          <table>
+            <thead><tr><th>id_produto (PK)</th><th>nome</th><th>preco</th><th>estoque</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Teclado Gamer</td><td>R$ 150.00</td><td>10</td></tr>
+              <tr><td>2</td><td>Mouse Óptico</td><td>R$ 49.90</td><td>0</td></tr>
+            </tbody>
+          </table>
+        `,
+        options: [
+          { text: "Estoque zerado no cadastro", code: "INSERT INTO PRODUTOS VALUES (3, 'Fone', 80.0, 0);", correct: false, reason: "Incorreto. A regra diz 'estoque >= 0', então valor 0 é aceito pelo domínio." },
+          { text: "Preço negativo por falha de digitação", code: "UPDATE PRODUTOS SET preco = -25.00 WHERE id_produto = 1;", correct: true, reason: "Perfeito! Violação de Integridade de Domínio (CHECK). O valor -25.00 fere a restrição lógica do negócio (preco > 0)." },
+          { text: "Preço promocional válido", code: "UPDATE PRODUTOS SET preco = 99.90 WHERE id_produto = 1;", correct: false, reason: "Incorreto. R$ 99.90 é um valor decimal positivo válido." }
+        ]
+      },
+      {
+        title: "Caso 3: Integridade Referencial (FK & Órfão)",
+        desc: "A tabela <code>PEDIDOS</code> possui a restrição: <code>FOREIGN KEY (cliente_id) REFERENCES CLIENTES(id_cliente) ON DELETE RESTRICT</code>. O que acontece ao rodar o comando?",
+        tableHtml: `
+          <table>
+            <thead><tr><th>id_pedido (PK)</th><th>cliente_id (FK)</th><th>valor</th></tr></thead>
+            <tbody>
+              <tr><td>5001</td><td>101</td><td>R$ 350.00</td></tr>
+            </tbody>
+          </table>
+        `,
+        options: [
+          { text: "O cliente é apagado e o pedido fica sem dono", code: "DELETE FROM CLIENTES WHERE id_cliente = 101;", correct: false, reason: "Incorreto. Se isso ocorresse, criaria um registro órfão, o que a FK impede." },
+          { text: "O pedido 5001 é excluído automaticamente", code: "DELETE FROM CLIENTES WHERE id_cliente = 101;", correct: false, reason: "Incorreto. A cláusula é ON DELETE RESTRICT, não CASCADE." },
+          { text: "O SGBD bloqueia o DELETE para evitar registro órfão", code: "DELETE FROM CLIENTES WHERE id_cliente = 101;", correct: true, reason: "Resposta Certeira! Com ON DELETE RESTRICT, o banco rejeita a exclusão do cliente enquanto existirem pedidos vinculados a ele." }
+        ]
+      }
+    ];
+
+    let currentStage = 0;
+    let answered = false;
+
+    function loadStage() {
+      answered = false;
+      const stage = stages[currentStage];
+      
+      document.getElementById('title-text').innerText = stage.title;
+      document.getElementById('case-desc').innerHTML = stage.desc;
+      document.getElementById('table-view').innerHTML = stage.tableHtml;
+      
+      const optionsContainer = document.getElementById('options-container');
+      optionsContainer.innerHTML = '';
+      
+      stage.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn-option';
+        btn.innerHTML = `<strong>${opt.text}</strong><code>${opt.code}</code>`;
+        btn.onclick = () => selectOption(idx, btn);
+        optionsContainer.appendChild(btn);
+      });
+
+      // Atualiza passos visuais
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById(`step-${i}`);
+        if (i <= currentStage + 1) el.classList.add('active');
+        else el.classList.remove('active');
+      }
+
+      document.getElementById('feedback').style.display = 'none';
+      document.getElementById('btn-next').style.display = 'none';
+    }
+
+    function selectOption(index, buttonElement) {
+      if (answered) return;
+      
+      const stage = stages[currentStage];
+      const opt = stage.options[index];
+      const feedback = document.getElementById('feedback');
+      const allButtons = document.querySelectorAll('.btn-option');
+
+      feedback.style.display = 'block';
+      feedback.innerHTML = opt.reason;
+
+      if (opt.correct) {
+        answered = true;
+        buttonElement.classList.add('correct');
+        feedback.className = 'feedback-box success';
+        document.getElementById('btn-next').style.display = 'block';
+      } else {
+        buttonElement.classList.add('wrong');
+        feedback.className = 'feedback-box error';
+        setTimeout(() => {
+          buttonElement.classList.remove('wrong');
+        }, 1200);
+      }
+    }
+
+    function nextQuestion() {
+      currentStage++;
+      if (currentStage < stages.length) {
+        loadStage();
+      } else {
+        document.getElementById('game-content').style.display = 'none';
+        document.getElementById('win-screen').style.display = 'block';
+      }
+    }
+
+    function restartGame() {
+      currentStage = 0;
+      document.getElementById('game-content').style.display = 'flex';
+      document.getElementById('win-screen').style.display = 'none';
+      loadStage();
+    }
+
+    // Início
+    loadStage();
+  </script>
+</body>
+</html>

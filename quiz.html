@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQL Noir: Operação Integridade - Dashboard Seminário</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome for presentation & database icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <!-- Google Fonts: JetBrains Mono and Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Fira Code', 'monospace']
+          },
+          colors: {
+            noir: {
+              950: '#070a0f',
+              900: '#0d1117',
+              850: '#121720',
+              800: '#161b22',
+              700: '#21262d',
+              600: '#30363d',
+              border: '#30363d',
+              text: '#c9d1d9',
+              bright: '#f0f6fc',
+              muted: '#8b949e',
+              accent: '#238636',
+              accentHover: '#2ea043',
+              blue: '#58a6ff',
+              cyan: '#39c5cf',
+              danger: '#f85149',
+              warning: '#e3b341',
+              purple: '#bc8cff'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Strict viewport lock & zero scrollbars */
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Glow Effects */
+    .glow-emerald {
+      box-shadow: 0 0 16px -3px rgba(35, 134, 54, 0.4);
+    }
+    .glow-blue {
+      box-shadow: 0 0 16px -3px rgba(88, 166, 255, 0.3);
+    }
+    .glow-danger {
+      box-shadow: 0 0 16px -3px rgba(248, 81, 73, 0.4);
+    }
+
+    .sql-code-pill {
+      display: inline-block;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.3rem;
+      font-size: 0.8em;
+      font-family: 'Fira Code', monospace;
+      font-weight: 600;
+    }
+
+    /* Column Tag Badges */
+    .pk-badge {
+      background: rgba(188, 140, 255, 0.2);
+      color: #bc8cff;
+      border: 1px solid rgba(188, 140, 255, 0.35);
+      font-size: 0.65rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 700;
+      margin-left: 3px;
+    }
+
+    .fk-badge {
+      background: rgba(57, 197, 207, 0.2);
+      color: #39c5cf;
+      border: 1px solid rgba(57, 197, 207, 0.35);
+      font-size: 0.65rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 700;
+      margin-left: 3px;
+    }
+  </style>
+</head>
+
+<body class="bg-noir-950 text-noir-text font-sans antialiased h-screen flex flex-col justify-between selection:bg-noir-blue selection:text-noir-950 p-2.5 md:p-3 box-border">
+
+  <!-- Compact Presenter Top Bar -->
+  <header class="bg-noir-900 border border-noir-600 rounded-xl px-3.5 py-2 flex items-center justify-between gap-3 shadow-md shrink-0 mb-2">
+    <!-- Brand & Title -->
+    <div class="flex items-center gap-2.5">
+      <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-noir-800 border border-noir-600 text-noir-blue text-sm shadow-inner">
+        <i class="fa-solid fa-terminal"></i>
+      </div>
+      <div class="leading-none">
+        <div class="flex items-center gap-1.5 mb-1">
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/60 text-amber-400 border border-amber-500/40 uppercase">
+            <i class="fa-solid fa-shield-halved mr-1 text-[8px]"></i> Perícia SGBD
+          </span>
+          <span class="text-[10px] font-mono text-noir-muted hidden sm:inline">• Seminário de BD</span>
+        </div>
+        <h1 class="text-sm md:text-base font-bold text-noir-bright tracking-tight">
+          Operação Integridade: <span class="text-noir-blue font-mono text-xs md:text-sm">SQL Noir</span>
+        </h1>
+      </div>
+    </div>
+
+    <!-- Case Direct Switcher Navigation Pills -->
+    <div class="flex items-center gap-1 bg-noir-950 p-0.5 rounded-lg border border-noir-700" id="case-pills-nav">
+      <button onclick="jumpToCase(0)" id="pill-0" class="px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright">
+        1. Entidade (PK)
+      </button>
+      <button onclick="jumpToCase(1)" id="pill-1" class="px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright">
+        2. Domínio (CHECK)
+      </button>
+      <button onclick="jumpToCase(2)" id="pill-2" class="px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright">
+        3. Referencial (FK)
+      </button>
+      <button onclick="showSummaryScreen()" id="pill-summary" class="px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright">
+        <i class="fa-solid fa-award mr-1 text-amber-400"></i> Síntese
+      </button>
+    </div>
+
+    <!-- Presenter Utility Controls -->
+    <div class="flex items-center gap-2">
+      <!-- Audience Discussion Timer -->
+      <div class="flex items-center bg-noir-850 border border-noir-600 rounded-md px-2 py-0.5 gap-1.5" title="Cronômetro para debate na sala">
+        <i class="fa-regular fa-clock text-noir-blue text-xs"></i>
+        <span id="timer-display" class="font-mono text-xs font-bold text-noir-bright w-10 text-center">00:45</span>
+        <button onclick="toggleTimer()" id="timer-toggle-btn" class="text-[11px] text-noir-muted hover:text-emerald-400 px-0.5 transition-colors" title="Iniciar/Pausar Timer">
+          <i class="fa-solid fa-play" id="timer-icon"></i>
+        </button>
+        <button onclick="resetTimer(45)" class="text-[11px] text-noir-muted hover:text-noir-bright px-0.5 transition-colors" title="Resetar 45s">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+      </div>
+
+      <!-- Presenter Reveal Answer Button -->
+      <button onclick="togglePresenterGuide()" id="btn-toggle-guide" class="flex items-center gap-1 px-2.5 py-1 bg-noir-800 hover:bg-noir-700 text-noir-bright border border-noir-600 rounded-md text-xs font-semibold transition shadow-sm" title="Atalho: Tecla R">
+        <i class="fa-solid fa-chalkboard-user text-amber-400 text-xs"></i>
+        <span class="hidden md:inline">Gabarito / Dica</span>
+        <kbd class="hidden lg:inline-block px-1 bg-noir-900 border border-noir-600 rounded text-[9px] text-noir-muted">R</kbd>
+      </button>
+
+      <!-- Fullscreen Toggle -->
+      <button onclick="toggleFullscreen()" class="p-1.5 bg-noir-800 hover:bg-noir-700 text-noir-muted hover:text-noir-bright border border-noir-600 rounded-md text-xs transition" title="Alternar Tela Cheia (F)">
+        <i class="fa-solid fa-expand" id="fullscreen-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Compact Viewport Container (Fit exactly within remaining 100vh height) -->
+  <main class="flex-1 w-full flex flex-col justify-between overflow-hidden min-h-0">
+    
+    <!-- Active Quiz View (Strict Height, No Scroll) -->
+    <div id="quiz-view" class="grid grid-cols-12 gap-2.5 h-full min-h-0 items-stretch">
+      
+      <!-- ============================================================ -->
+      <!-- LEFT COLUMN (5 cols / ~42%): Case Header, Table State, DDL & Tip -->
+      <!-- ============================================================ -->
+      <section class="col-span-12 lg:col-span-5 flex flex-col gap-2 h-full min-h-0 justify-between">
+        
+        <!-- Case Summary Header -->
+        <div class="bg-noir-900 border border-noir-600 rounded-xl p-3 shadow-md shrink-0">
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <div class="flex items-center gap-2">
+              <span id="case-badge-type" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-noir-purple/20 text-noir-purple border border-noir-purple/40 uppercase">
+                INTEGRIDADE DE ENTIDADE
+              </span>
+              <span id="case-number-badge" class="text-[11px] font-mono text-noir-muted">Caso 01/03</span>
+            </div>
+            <div class="flex items-center gap-1 text-[11px] text-noir-muted font-mono">
+              <i class="fa-solid fa-database text-noir-blue text-[10px]"></i>
+              <span id="db-engine">PostgreSQL</span>
+            </div>
+          </div>
+
+          <h2 id="case-title" class="text-sm md:text-base font-extrabold text-noir-bright tracking-tight">
+            Caso 1: A Invasão da Tabela
+          </h2>
+
+          <div id="case-desc" class="mt-1.5 text-xs text-noir-text leading-relaxed bg-noir-850 p-2 rounded-lg border border-noir-700/60">
+            Carregando briefing...
+          </div>
+        </div>
+
+        <!-- Database Instance Table Inspector -->
+        <div class="bg-noir-900 border border-noir-600 rounded-xl p-3 shadow-md flex-1 flex flex-col min-h-0 justify-between">
+          <div class="flex items-center justify-between mb-1.5 border-b border-noir-700 pb-1.5 shrink-0">
+            <div class="flex items-center gap-1.5 text-noir-bright font-semibold text-xs">
+              <i class="fa-solid fa-table text-emerald-400 text-[11px]"></i>
+              <span>Instância Atual da Relação</span>
+            </div>
+            <span class="text-[11px] font-mono text-noir-cyan" id="active-table-name">Tabela: CLIENTES</span>
+          </div>
+
+          <!-- Table Container -->
+          <div class="rounded-lg border border-noir-700 bg-noir-950 font-mono text-xs overflow-hidden shrink-0">
+            <div id="table-container">
+              <!-- Rendered table injected dynamically -->
+            </div>
+          </div>
+
+          <!-- DDL Specification -->
+          <div class="mt-2 pt-2 border-t border-noir-700/60 flex flex-col gap-1 shrink-0">
+            <div class="flex items-center justify-between text-[10px] font-mono text-noir-muted">
+              <span class="flex items-center gap-1 text-amber-400 font-semibold">
+                <i class="fa-solid fa-code text-[10px]"></i> DDL Constraint Ativa:
+              </span>
+              <span class="text-[9px] bg-noir-800 px-1.5 py-0.5 rounded border border-noir-600">ENFORCED</span>
+            </div>
+            <div id="ddl-spec" class="p-2 bg-noir-950 text-noir-cyan rounded-md font-mono text-[11px] border border-noir-700 whitespace-pre-line leading-tight">
+              <!-- DDL snippet injected -->
+            </div>
+          </div>
+
+          <!-- Presenter Didactic Prompt Box (Toggled on R or button) -->
+          <div id="presenter-theory-box" class="mt-2 p-2 rounded-lg border border-amber-500/40 bg-amber-950/20 text-amber-200 text-xs shrink-0">
+            <div class="font-bold flex items-center gap-1.5 mb-1 text-amber-300 text-[11px]">
+              <i class="fa-solid fa-lightbulb text-xs"></i> Ponto Didático para a Sala:
+            </div>
+            <p id="presenter-theory-text" class="text-[11px] leading-snug">
+              Explicação de apoio para o palestrante.
+            </p>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- RIGHT COLUMN (7 cols / ~58%): Challenge, 3 Compact Cards, Feedback -->
+      <!-- ============================================================ -->
+      <section class="col-span-12 lg:col-span-7 flex flex-col gap-2 h-full min-h-0 justify-between">
+        
+        <!-- Challenge Header Banner -->
+        <div class="bg-noir-900 border border-noir-600 rounded-xl px-3.5 py-2 shadow-md flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-noir-danger">
+              <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> Pergunta para o Auditório
+            </span>
+            <span class="text-xs text-noir-muted hidden sm:inline">•</span>
+            <h3 class="text-xs md:text-sm font-bold text-noir-bright">
+              Qual dos comandos abaixo o SGBD deve REJEITAR imediatamente?
+            </h3>
+          </div>
+          <div class="text-[10px] text-noir-muted font-mono hidden xl:flex items-center gap-1.5">
+            <span>Teclas:</span>
+            <kbd class="px-1 py-0.2 bg-noir-800 border border-noir-600 rounded text-noir-bright font-bold">1</kbd>
+            <kbd class="px-1 py-0.2 bg-noir-800 border border-noir-600 rounded text-noir-bright font-bold">2</kbd>
+            <kbd class="px-1 py-0.2 bg-noir-800 border border-noir-600 rounded text-noir-bright font-bold">3</kbd>
+          </div>
+        </div>
+
+        <!-- 3 Interactive Alternative Cards -->
+        <div id="options-container" class="flex flex-col gap-2 shrink-0">
+          <!-- Option cards dynamically injected -->
+        </div>
+
+        <!-- Seminar Feedback & Database Rationale (Strict compact container) -->
+        <div id="resolution-card" class="hidden rounded-xl border p-3 transition-all duration-200 shadow-xl flex-1 flex flex-col justify-center min-h-0">
+          <div class="flex items-center justify-between gap-2 mb-1 shrink-0">
+            <div class="flex items-center gap-2 font-bold text-xs md:text-sm" id="resolution-status">
+              <!-- Status Icon & Title -->
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold" id="resolution-tag">
+              Análise SGBD
+            </span>
+          </div>
+          
+          <div id="resolution-body" class="text-xs leading-snug mt-1 text-noir-bright shrink-0">
+            <!-- Explanation injected -->
+          </div>
+
+          <!-- Theoretical Deep-dive note -->
+          <div id="theoretical-deepdive" class="mt-2 pt-1.5 border-t border-white/10 text-[11px] font-mono text-noir-muted shrink-0">
+            <!-- Theory rule -->
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SUMMARY SCREEN (Visão Compacta dos 3 Pilares - Fits 100vh)   -->
+    <!-- ============================================================ -->
+    <div id="summary-view" class="hidden h-full flex flex-col items-center justify-center p-2">
+      <div class="max-w-3xl w-full bg-noir-900 border border-noir-600 rounded-2xl p-5 shadow-2xl text-center glow-blue flex flex-col gap-3">
+        <div class="flex items-center justify-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xl flex items-center justify-center">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div class="text-left">
+            <span class="block text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">
+              Diagnóstico Concluído
+            </span>
+            <h2 class="text-lg md:text-xl font-extrabold text-noir-bright tracking-tight">
+              Os 3 Pilares da Integridade Relacional
+            </h2>
+          </div>
+        </div>
+
+        <p class="text-xs text-noir-muted max-w-xl mx-auto leading-relaxed">
+          Demonstração de como o SGBD funciona como um guardião matemático, bloqueando corrupção e anomalias relacionais na própria engine.
+        </p>
+
+        <!-- Compact 3 Pillars Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-left my-1">
+          <!-- Pillar 1 -->
+          <div class="bg-noir-950 border border-noir-purple/40 rounded-xl p-3 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-1.5 text-noir-purple font-mono font-bold text-xs mb-1">
+                <i class="fa-solid fa-fingerprint"></i> 1. Entidade (PK)
+              </div>
+              <p class="text-[11px] text-noir-text leading-snug">
+                Garante a <strong>unicidade</strong> e valor <strong>não-nulo</strong> de cada tupla (<code class="text-noir-blue">PRIMARY KEY</code>).
+              </p>
+            </div>
+            <div class="mt-2 text-[10px] font-mono text-emerald-400 bg-noir-900 p-1.5 rounded border border-noir-800">
+              Evita: Tuplas duplicadas & dados clones
+            </div>
+          </div>
+
+          <!-- Pillar 2 -->
+          <div class="bg-noir-950 border border-amber-500/40 rounded-xl p-3 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-1.5 text-amber-400 font-mono font-bold text-xs mb-1">
+                <i class="fa-solid fa-filter"></i> 2. Domínio (CHECK)
+              </div>
+              <p class="text-[11px] text-noir-text leading-snug">
+                Garante a <strong>semântica e validade</strong> lógica dos atributos (<code class="text-noir-blue">CHECK, NOT NULL</code>).
+              </p>
+            </div>
+            <div class="mt-2 text-[10px] font-mono text-amber-300 bg-noir-900 p-1.5 rounded border border-noir-800">
+              Evita: Preços negativos, estoque inválido
+            </div>
+          </div>
+
+          <!-- Pillar 3 -->
+          <div class="bg-noir-950 border border-noir-cyan/40 rounded-xl p-3 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-1.5 text-noir-cyan font-mono font-bold text-xs mb-1">
+                <i class="fa-solid fa-link"></i> 3. Referencial (FK)
+              </div>
+              <p class="text-[11px] text-noir-text leading-snug">
+                Mantém a <strong>consistência entre relações correlatas</strong> (<code class="text-noir-blue">FOREIGN KEY</code>).
+              </p>
+            </div>
+            <div class="mt-2 text-[10px] font-mono text-cyan-300 bg-noir-900 p-1.5 rounded border border-noir-800">
+              Evita: Registros órfãos e pedidos sem dono
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-center gap-3 mt-1">
+          <button onclick="restartSeminar()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-2 shadow-md">
+            <i class="fa-solid fa-rotate-left text-xs"></i> Reiniciar Quiz
+          </button>
+          <button onclick="jumpToCase(0)" class="px-4 py-2 rounded-lg bg-noir-800 hover:bg-noir-700 border border-noir-600 text-noir-bright font-semibold text-xs transition flex items-center gap-2">
+            <i class="fa-solid fa-arrow-left text-xs"></i> Revisar Caso 1
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Presenter Presentation Control Bar (Footer) -->
+  <footer class="mt-2 bg-noir-900 border border-noir-600 rounded-xl px-3 py-1.5 flex items-center justify-between gap-3 shadow-md shrink-0">
+    <!-- Keyboard Shortcut hints -->
+    <div class="flex items-center gap-2 text-[11px] text-noir-muted font-mono">
+      <span class="text-noir-bright font-semibold"><i class="fa-regular fa-keyboard mr-1 text-noir-blue"></i> Teclas:</span>
+      <span><kbd class="px-1 py-0.5 bg-noir-800 border border-noir-600 rounded text-noir-bright">1-3</kbd> Escolher</span>
+      <span><kbd class="px-1 py-0.5 bg-noir-800 border border-noir-600 rounded text-noir-bright">R</kbd> Gabarito</span>
+      <span><kbd class="px-1 py-0.5 bg-noir-800 border border-noir-600 rounded text-noir-bright">Enter / Espaço</kbd> Avançar</span>
+    </div>
+
+    <!-- Live Navigation Buttons -->
+    <div class="flex items-center gap-2">
+      <button id="btn-prev-case" onclick="prevCase()" class="px-3 py-1 rounded-lg bg-noir-800 hover:bg-noir-700 text-noir-text hover:text-noir-bright border border-noir-600 text-xs font-semibold transition flex items-center gap-1.5">
+        <i class="fa-solid fa-chevron-left text-[10px]"></i> Anterior
+      </button>
+
+      <button id="btn-explain-now" onclick="revealCurrentAnswer()" class="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition flex items-center gap-1.5" title="Revela a resposta correta e abre a explicação">
+        <i class="fa-solid fa-graduation-cap text-xs"></i> <span id="explain-btn-label">Gabarito</span>
+      </button>
+
+      <button id="btn-next-case" onclick="nextCase()" class="px-3.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md glow-emerald">
+        <span>Próximo</span> <i class="fa-solid fa-chevron-right text-[10px]"></i>
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * Database Forensic Cases (Strictly aligned with relational theory)
+     */
+    const cases = [
+      {
+        id: 1,
+        title: "Caso 1: Integridade de Entidade (Primary Key)",
+        type: "INTEGRIDADE DE ENTIDADE",
+        typeClass: "bg-purple-950/60 text-purple-300 border-purple-500/40",
+        tableName: "CLIENTES",
+        engine: "PostgreSQL / ANSI SQL",
+        desc: `A tabela <code class="sql-code-pill bg-noir-800 text-noir-blue">CLIENTES</code> armazena cadastros com <code class="sql-code-pill bg-noir-800 text-noir-purple">id_cliente INT PRIMARY KEY</code>. A chave primária exige que cada tupla seja única e não-nula.`,
+        ddl: `CREATE TABLE CLIENTES (\n  id_cliente INT PRIMARY KEY,\n  nome VARCHAR(100) NOT NULL,\n  cpf VARCHAR(14) UNIQUE NOT NULL\n);`,
+        tableHeaders: ["id_cliente (PK)", "nome", "cpf"],
+        tableRows: [
+          ["101", "Alice Dias", "111.222.333-00"],
+          ["102", "Bruno Lima", "444.555.666-11"]
+        ],
+        presenterTip: "Destaque à sala: A PK possui 2 axiomas: 1) NOT NULL; 2) UNIQUE. Inserir o ID 101 quebra a Unicidade, impedindo o SGBD de identificar univocamente a tupla.",
+        options: [
+          {
+            label: "1",
+            text: "Cadastrar novo cliente com id_cliente 103 inédito",
+            code: "INSERT INTO CLIENTES VALUES (103, 'Carlos Souza', '777.888.999-22');",
+            correct: false,
+            syntaxType: "INSERT",
+            feedback: "<strong>COMANDO VÁLIDO:</strong> O identificador <code class='text-noir-cyan font-mono'>103</code> é inédito e não-nulo, respeitando a chave primária.",
+            theory: "Conceito: Inserções com chaves primárias originais cumprem a regra de Unicidade."
+          },
+          {
+            label: "2",
+            text: "Inserir novo cliente reutilizando o id_cliente 101 já cadastrado",
+            code: "INSERT INTO CLIENTES VALUES (101, 'Daniel Rocha', '999.000.111-33');",
+            correct: true,
+            syntaxType: "INSERT",
+            feedback: "<strong>VIOLAÇÃO CRÍTICA DETECTADA! (REJEITADO PELO SGBD):</strong> Erro: <code>duplicate key value violates unique constraint 'clientes_pkey'</code>. O id 101 já pertence a Alice Dias.",
+            theory: "Pilar Violado: INTEGRIDADE DE ENTIDADE. A Primary Key não admite duplicatas nem nulos."
+          },
+          {
+            label: "3",
+            text: "Atualizar apenas o nome do cliente 102 para 'Bruno Silva'",
+            code: "UPDATE CLIENTES SET nome = 'Bruno Silva' WHERE id_cliente = 102;",
+            correct: false,
+            syntaxType: "UPDATE",
+            feedback: "<strong>COMANDO VÁLIDO:</strong> A atualização ocorre em atributo descritivo sem afetar a chave primária.",
+            theory: "Conceito: Alterações de dados não-chave não ferem a integridade de entidade."
+          }
+        ]
+      },
+      {
+        id: 2,
+        title: "Caso 2: Integridade de Domínio (CHECK Constraints)",
+        type: "INTEGRIDADE DE DOMÍNIO",
+        typeClass: "bg-amber-950/60 text-amber-300 border-amber-500/40",
+        tableName: "PRODUTOS",
+        engine: "PostgreSQL / ANSI SQL",
+        desc: `A tabela <code class="sql-code-pill bg-noir-800 text-noir-blue">PRODUTOS</code> possui a regra: <code class="sql-code-pill bg-noir-800 text-amber-400">CHECK (preco > 0 AND estoque >= 0)</code>. O SGBD garante que os valores atendam à semântica válida de negócio.`,
+        ddl: `CREATE TABLE PRODUTOS (\n  id_produto INT PRIMARY KEY,\n  nome VARCHAR(80) NOT NULL,\n  preco NUMERIC(10,2) NOT NULL,\n  estoque INT NOT NULL,\n  CONSTRAINT chk_regra CHECK (preco > 0 AND estoque >= 0)\n);`,
+        tableHeaders: ["id_produto (PK)", "nome", "preco (R$)", "estoque"],
+        tableRows: [
+          ["1", "Teclado Mecânico RGB", "150.00", "10"],
+          ["2", "Mouse Óptico 16000 DPI", "49.90", "0"]
+        ],
+        presenterTip: "Destaque à sala: Domínio define o conjunto de valores aceitáveis. Preço menor ou igual a 0 é absurdo comercial, e estoque negativo quebra a lógica de inventário.",
+        options: [
+          {
+            label: "1",
+            text: "Cadastrar fone novo com preço R$ 80.00 e estoque inicial zerado (0)",
+            code: "INSERT INTO PRODUTOS VALUES (3, 'Headset Gamer', 80.00, 0);",
+            correct: false,
+            syntaxType: "INSERT",
+            feedback: "<strong>COMANDO VÁLIDO:</strong> A regra estabelece <code class='font-mono text-noir-cyan'>estoque >= 0</code> (maior ou igual). Logo, o valor zero é aceito.",
+            theory: "Operadores lógicos: `>=` inclui o zero como limite válido no domínio."
+          },
+          {
+            label: "2",
+            text: "Atualizar o preço do teclado para R$ -25.00 por erro de digitação",
+            code: "UPDATE PRODUTOS SET preco = -25.00 WHERE id_produto = 1;",
+            correct: true,
+            syntaxType: "UPDATE",
+            feedback: "<strong>VIOLAÇÃO CRÍTICA DETECTADA! (REJEITADO PELO SGBD):</strong> Erro: <code>violates check constraint 'chk_regra'</code>. O valor -25.00 viola a regra <code class='text-amber-400 font-mono'>preco > 0</code>.",
+            theory: "Pilar Violado: INTEGRIDADE DE DOMÍNIO. O SGBD impede que valores ilógicos entrem no banco."
+          },
+          {
+            label: "3",
+            text: "Aplicar desconto promocional reduzindo o preço para R$ 99.90",
+            code: "UPDATE PRODUTOS SET preco = 99.90 WHERE id_produto = 1;",
+            correct: false,
+            syntaxType: "UPDATE",
+            feedback: "<strong>COMANDO VÁLIDO:</strong> O valor 99.90 satisfaz a restrição de ser estritamente maior que zero (<code class='font-mono text-noir-cyan'>99.90 > 0</code>).",
+            theory: "Conceito: Transições que mantêm a invariante da restrição CHECK são aceitas."
+          }
+        ]
+      },
+      {
+        id: 3,
+        title: "Caso 3: Integridade Referencial (Foreign Key & RESTRICT)",
+        type: "INTEGRIDADE REFERENCIAL",
+        typeClass: "bg-cyan-950/60 text-cyan-300 border-cyan-500/40",
+        tableName: "PEDIDOS",
+        engine: "PostgreSQL / ANSI SQL",
+        desc: `A tabela <code class="sql-code-pill bg-noir-800 text-noir-blue">PEDIDOS</code> referencia <code class="sql-code-pill bg-noir-800 text-noir-cyan">CLIENTES(id_cliente) ON DELETE RESTRICT</code>. O que acontece se tentarmos executar o comando DELETE no cliente 101?`,
+        ddl: `CREATE TABLE PEDIDOS (\n  id_pedido INT PRIMARY KEY,\n  cliente_id INT NOT NULL,\n  valor NUMERIC(10,2),\n  CONSTRAINT fk_pedidos_cliente FOREIGN KEY (cliente_id)\n    REFERENCES CLIENTES(id_cliente) ON DELETE RESTRICT\n);`,
+        tableHeaders: ["id_pedido (PK)", "cliente_id (FK)", "valor (R$)"],
+        tableRows: [
+          ["5001", "101", "350.00"]
+        ],
+        presenterTip: "Destaque à sala: O objetivo da FK é impedir tuplas órfãs. Com RESTRICT, apagar o pai (101) quando ele possui filhos (pedido 5001) é sumariamente bloqueado.",
+        options: [
+          {
+            label: "1",
+            text: "O cliente 101 é apagado e o pedido 5001 fica 'órfão' no banco",
+            code: "DELETE FROM CLIENTES WHERE id_cliente = 101;",
+            correct: false,
+            syntaxType: "DELETE",
+            feedback: "<strong>AFIRMAÇÃO INCORRETA:</strong> Isso causaria corrupção relacional! A Foreign Key existe para jamais permitir tuplas órfãs.",
+            theory: "Conceito: O modelo relacional veda ponteiros pendentes (dangling pointers)."
+          },
+          {
+            label: "2",
+            text: "O pedido 5001 é apagado em cascata silenciosamente pelo SGBD",
+            code: "DELETE FROM CLIENTES WHERE id_cliente = 101;",
+            correct: false,
+            syntaxType: "DELETE",
+            feedback: "<strong>AFIRMAÇÃO INCORRETA:</strong> O descarte em cascata exigiria a cláusula <code class='font-mono text-amber-400'>ON DELETE CASCADE</code>. A tabela usa <code class='font-mono text-noir-cyan'>RESTRICT</code>.",
+            theory: "Diferença teórica: RESTRICT (aborta se houver filhos) vs CASCADE (apaga os filhos)."
+          },
+          {
+            label: "3",
+            text: "O SGBD REJEITA o comando DELETE para evitar registro órfão",
+            code: "DELETE FROM CLIENTES WHERE id_cliente = 101;",
+            correct: true,
+            syntaxType: "DELETE",
+            feedback: "<strong>RESPOSTA EXATA! (BLOQUEADO PELO SGBD):</strong> Erro: <code>violates foreign key constraint 'fk_pedidos_cliente' on table 'pedidos'</code>. O cliente tem pedidos ativos!",
+            theory: "Pilar Violado: INTEGRIDADE REFERENCIAL. O banco veda a deleção para garantir a integridade entre tuplas."
+          }
+        ]
+      }
+    ];
+
+    let currentCaseIndex = 0;
+    let answered = false;
+    let presenterGuideActive = true; // Enabled by default to assist presentation
+    let timerDuration = 45;
+    let timerRemaining = 45;
+    let timerInterval = null;
+    let isTimerRunning = false;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderCase(currentCaseIndex);
+      setupKeyboardControls();
+    });
+
+    /**
+     * Render the active case inside the locked 100vh layout
+     */
+    function renderCase(index) {
+      currentCaseIndex = index;
+      answered = false;
+      resetTimer(45);
+
+      const c = cases[currentCaseIndex];
+
+      // Update Case Navigation Pills
+      for (let i = 0; i < cases.length; i++) {
+        const pill = document.getElementById(`pill-${i}`);
+        if (pill) {
+          if (i === currentCaseIndex) {
+            pill.className = "px-2.5 py-1 text-xs font-mono rounded font-bold transition-all bg-noir-800 text-noir-bright border border-noir-600 shadow-sm";
+          } else {
+            pill.className = "px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright";
+          }
+        }
+      }
+      document.getElementById('pill-summary').className = "px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright";
+
+      // View switching
+      document.getElementById('quiz-view').classList.remove('hidden');
+      document.getElementById('summary-view').classList.add('hidden');
+
+      // Left column assignments
+      const badge = document.getElementById('case-badge-type');
+      badge.textContent = c.type;
+      badge.className = `px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${c.typeClass}`;
+
+      document.getElementById('case-number-badge').textContent = `Caso 0${c.id}/0${cases.length}`;
+      document.getElementById('db-engine').textContent = c.engine;
+      document.getElementById('case-title').textContent = c.title;
+      document.getElementById('case-desc').innerHTML = c.desc;
+      document.getElementById('active-table-name').textContent = `Tabela: ${c.tableName}`;
+      document.getElementById('ddl-spec').textContent = c.ddl;
+
+      // Presenter note
+      document.getElementById('presenter-theory-text').innerHTML = c.presenterTip;
+      const theoryBox = document.getElementById('presenter-theory-box');
+      if (presenterGuideActive) {
+        theoryBox.classList.remove('hidden');
+      } else {
+        theoryBox.classList.add('hidden');
+      }
+
+      // Render Table & Options
+      renderDatabaseTable(c);
+      renderOptions(c);
+
+      // Reset feedback card
+      const resCard = document.getElementById('resolution-card');
+      resCard.classList.add('hidden');
+      resCard.className = "hidden rounded-xl border p-3 transition-all duration-200 shadow-xl flex-1 flex flex-col justify-center min-h-0";
+
+      // Prev button state
+      document.getElementById('btn-prev-case').disabled = (currentCaseIndex === 0);
+      document.getElementById('btn-prev-case').classList.toggle('opacity-40', currentCaseIndex === 0);
+      document.getElementById('btn-prev-case').classList.toggle('cursor-not-allowed', currentCaseIndex === 0);
+
+      document.getElementById('explain-btn-label').textContent = "Gabarito";
+    }
+
+    /**
+     * Render compact database instance table
+     */
+    function renderDatabaseTable(c) {
+      let headersHtml = c.tableHeaders.map(th => {
+        let tag = '';
+        if (th.includes('(PK)')) tag = '<span class="pk-badge">PK</span>';
+        else if (th.includes('(FK)')) tag = '<span class="fk-badge">FK</span>';
+        const cleanTitle = th.replace(' (PK)', '').replace(' (FK)', '');
+        return `<th class="px-2 py-1 text-left font-bold text-noir-cyan bg-noir-900 border-b border-noir-700">${cleanTitle} ${tag}</th>`;
+      }).join('');
+
+      let rowsHtml = c.tableRows.map((row) => {
+        let cells = row.map((cell, cIdx) => {
+          let cellStyle = "text-noir-text";
+          if (cIdx === 0) cellStyle = "text-purple-300 font-bold";
+          return `<td class="px-2 py-1 border-b border-noir-800/80 font-mono text-[11px] ${cellStyle}">${cell}</td>`;
+        }).join('');
+        return `<tr class="hover:bg-noir-900/60 transition-colors">${cells}</tr>`;
+      }).join('');
+
+      const tableMarkup = `
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr>${headersHtml}</tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      `;
+
+      document.getElementById('table-container').innerHTML = tableMarkup;
+    }
+
+    /**
+     * Render 3 compact option cards
+     */
+    function renderOptions(c) {
+      const container = document.getElementById('options-container');
+      container.innerHTML = '';
+
+      c.options.forEach((opt, idx) => {
+        const optionCard = document.createElement('div');
+        optionCard.id = `option-card-${idx}`;
+        optionCard.className = `group bg-noir-900 hover:bg-noir-850 border border-noir-600 hover:border-noir-blue/60 rounded-xl px-3 py-2 cursor-pointer transition-all duration-150 flex flex-col gap-1 shadow-sm select-none shrink-0`;
+        
+        let tagBadge = "bg-noir-blue/20 text-noir-blue border-noir-blue/30";
+        if (opt.syntaxType === 'INSERT') tagBadge = "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
+        if (opt.syntaxType === 'UPDATE') tagBadge = "bg-amber-500/20 text-amber-400 border-amber-500/40";
+        if (opt.syntaxType === 'DELETE') tagBadge = "bg-rose-500/20 text-rose-400 border-rose-500/40";
+
+        optionCard.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded bg-noir-800 border border-noir-600 flex items-center justify-center font-mono font-bold text-[11px] text-noir-bright group-hover:border-noir-blue">
+                ${opt.label}
+              </span>
+              <span class="font-semibold text-xs text-noir-bright leading-tight">
+                ${opt.text}
+              </span>
+            </div>
+            <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border uppercase ${tagBadge}">
+              ${opt.syntaxType}
+            </span>
+          </div>
+
+          <div class="bg-noir-950 px-2 py-1 rounded-md border border-noir-800 font-mono text-[11px] text-emerald-400 overflow-hidden text-ellipsis whitespace-nowrap">
+            ${highlightSql(opt.code)}
+          </div>
+        `;
+
+        optionCard.onclick = () => selectOption(idx);
+        container.appendChild(optionCard);
+      });
+    }
+
+    /**
+     * Syntax highlighter
+     */
+    function highlightSql(codeStr) {
+      return codeStr
+        .replace(/\b(INSERT INTO|VALUES|UPDATE|SET|WHERE|DELETE FROM|CHECK|CONSTRAINT|PRIMARY KEY|FOREIGN KEY|REFERENCES|ON DELETE RESTRICT)\b/g, '<span class="text-noir-purple font-bold">$1</span>')
+        .replace(/'([^']*)'/g, '<span class="text-amber-300">\'$1\'</span>')
+        .replace(/\b(\d+(\.\d+)?)\b/g, '<span class="text-noir-cyan font-bold">$1</span>');
+    }
+
+    /**
+     * Handle option selection
+     */
+    function selectOption(index) {
+      if (answered) return;
+
+      const c = cases[currentCaseIndex];
+      const opt = c.options[index];
+      const resCard = document.getElementById('resolution-card');
+      const resStatus = document.getElementById('resolution-status');
+      const resBody = document.getElementById('resolution-body');
+      const resTag = document.getElementById('resolution-tag');
+      const deepDive = document.getElementById('theoretical-deepdive');
+
+      c.options.forEach((_, i) => {
+        const card = document.getElementById(`option-card-${i}`);
+        card.classList.remove('border-emerald-500', 'bg-emerald-950/20', 'border-rose-500', 'bg-rose-950/20');
+      });
+
+      const selectedCard = document.getElementById(`option-card-${index}`);
+
+      if (opt.correct) {
+        answered = true;
+        selectedCard.classList.add('border-emerald-500', 'bg-emerald-950/20', 'glow-emerald');
+        
+        resCard.className = "rounded-xl border border-emerald-500/60 bg-emerald-950/30 p-3 transition-all duration-200 shadow-xl flex-1 flex flex-col justify-center min-h-0 block glow-emerald";
+        resStatus.innerHTML = '<i class="fa-solid fa-shield-check text-emerald-400 text-sm"></i> <span class="text-emerald-400 font-extrabold text-xs md:text-sm">Comando Bloqueado pelo SGBD!</span>';
+        resTag.className = "text-[9px] font-mono px-2 py-0.5 rounded uppercase font-bold bg-emerald-900/60 text-emerald-300 border border-emerald-600/50";
+        resTag.textContent = "Integridade Assegurada";
+
+        resBody.innerHTML = opt.feedback;
+        deepDive.innerHTML = `
+          <div class="flex items-start gap-1.5 text-emerald-200 text-[11px]">
+            <i class="fa-solid fa-check-double text-emerald-400 mt-0.5"></i>
+            <div><strong>Fundamentação de BD:</strong> ${opt.theory}</div>
+          </div>
+        `;
+
+        document.getElementById('explain-btn-label').textContent = "Resolvido";
+        stopTimer();
+      } else {
+        selectedCard.classList.add('border-rose-500', 'bg-rose-950/30', 'glow-danger');
+        
+        resCard.className = "rounded-xl border border-rose-500/60 bg-rose-950/30 p-3 transition-all duration-200 shadow-xl flex-1 flex flex-col justify-center min-h-0 block glow-danger";
+        resStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400 text-sm"></i> <span class="text-rose-400 font-extrabold text-xs md:text-sm">Operação Permitida (Não é o erro)</span>';
+        resTag.className = "text-[9px] font-mono px-2 py-0.5 rounded uppercase font-bold bg-rose-900/60 text-rose-300 border border-rose-600/50";
+        resTag.textContent = "Comando Válido";
+
+        resBody.innerHTML = opt.feedback;
+        deepDive.innerHTML = `
+          <div class="flex items-start gap-1.5 text-rose-200 text-[11px]">
+            <i class="fa-solid fa-circle-info text-rose-400 mt-0.5"></i>
+            <div>${opt.theory} — <em>Analise as outras opções com a sala.</em></div>
+          </div>
+        `;
+      }
+    }
+
+    /**
+     * Quick reveal / Presenter gabarito
+     */
+    function revealCurrentAnswer() {
+      const c = cases[currentCaseIndex];
+      const correctIndex = c.options.findIndex(o => o.correct);
+      if (correctIndex !== -1) {
+        selectOption(correctIndex);
+      }
+    }
+
+    /**
+     * Toggle didactic box
+     */
+    function togglePresenterGuide() {
+      presenterGuideActive = !presenterGuideActive;
+      const theoryBox = document.getElementById('presenter-theory-box');
+      const btn = document.getElementById('btn-toggle-guide');
+
+      if (presenterGuideActive) {
+        theoryBox.classList.remove('hidden');
+        btn.classList.add('bg-amber-900/40', 'border-amber-400', 'text-amber-300');
+      } else {
+        theoryBox.classList.add('hidden');
+        btn.classList.remove('bg-amber-900/40', 'border-amber-400', 'text-amber-300');
+      }
+    }
+
+    /**
+     * Timer functions
+     */
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function updateTimerDisplay() {
+      const el = document.getElementById('timer-display');
+      el.textContent = formatTime(timerRemaining);
+      if (timerRemaining <= 10 && timerRemaining > 0) {
+        el.classList.add('text-rose-400');
+      } else {
+        el.classList.remove('text-rose-400');
+      }
+    }
+
+    function toggleTimer() {
+      if (isTimerRunning) {
+        stopTimer();
+      } else {
+        startTimer();
+      }
+    }
+
+    function startTimer() {
+      if (isTimerRunning) return;
+      isTimerRunning = true;
+      document.getElementById('timer-icon').className = "fa-solid fa-pause";
+      
+      timerInterval = setInterval(() => {
+        if (timerRemaining > 0) {
+          timerRemaining--;
+          updateTimerDisplay();
+        } else {
+          stopTimer();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      isTimerRunning = false;
+      clearInterval(timerInterval);
+      document.getElementById('timer-icon').className = "fa-solid fa-play";
+    }
+
+    function resetTimer(seconds = 45) {
+      stopTimer();
+      timerDuration = seconds;
+      timerRemaining = seconds;
+      updateTimerDisplay();
+    }
+
+    /**
+     * Slide Navigation
+     */
+    function nextCase() {
+      if (currentCaseIndex < cases.length - 1) {
+        renderCase(currentCaseIndex + 1);
+      } else {
+        showSummaryScreen();
+      }
+    }
+
+    function prevCase() {
+      if (currentCaseIndex > 0) {
+        renderCase(currentCaseIndex - 1);
+      }
+    }
+
+    function jumpToCase(index) {
+      if (index >= 0 && index < cases.length) {
+        renderCase(index);
+      }
+    }
+
+    function showSummaryScreen() {
+      stopTimer();
+      document.getElementById('quiz-view').classList.add('hidden');
+      document.getElementById('summary-view').classList.remove('hidden');
+
+      for (let i = 0; i < cases.length; i++) {
+        const pill = document.getElementById(`pill-${i}`);
+        if (pill) pill.className = "px-2.5 py-1 text-xs font-mono rounded font-semibold transition-all text-noir-muted hover:text-noir-bright";
+      }
+      document.getElementById('pill-summary').className = "px-2.5 py-1 text-xs font-mono rounded font-bold transition-all bg-amber-950/60 text-amber-300 border border-amber-500/50 shadow-sm";
+    }
+
+    function restartSeminar() {
+      renderCase(0);
+    }
+
+    /**
+     * Keyboard bindings for presenters
+     */
+    function setupKeyboardControls() {
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+        if (e.key === '1') selectOption(0);
+        if (e.key === '2') selectOption(1);
+        if (e.key === '3') selectOption(2);
+
+        if (e.key.toLowerCase() === 'r') {
+          revealCurrentAnswer();
+        }
+
+        if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+          if (!document.getElementById('summary-view').classList.contains('hidden')) {
+            // End of quiz
+          } else if (answered) {
+            nextCase();
+          } else {
+            revealCurrentAnswer();
+          }
+        }
+        if (e.key === 'ArrowLeft') {
+          prevCase();
+        }
+
+        if (e.key.toLowerCase() === 'f') {
+          toggleFullscreen();
+        }
+      });
+    }
+
+    /**
+     * Fullscreen toggle
+     */
+    function toggleFullscreen() {
+      const icon = document.getElementById('fullscreen-icon');
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          icon.className = "fa-solid fa-compress";
+        }).catch(() => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().then(() => {
+            icon.className = "fa-solid fa-expand";
+          }).catch(() => {});
+        }
+      }
+    }
+  </script>
+</body>
+</html>
